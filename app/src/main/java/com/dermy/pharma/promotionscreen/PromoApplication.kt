@@ -1,12 +1,14 @@
 package com.dermy.pharma.promotionscreen
 
 import android.app.Application
+import android.content.Context
 import com.dermy.pharma.promotionscreen.data.remote.AuthDataSource
 import com.dermy.pharma.promotionscreen.data.remote.AuthDataSourceImpl
 import com.dermy.pharma.promotionscreen.data.remote.ConfigDataSource
 import com.dermy.pharma.promotionscreen.data.remote.ConfigDataSourceImpl
 import com.dermy.pharma.promotionscreen.data.remote.DriveMediaDataSource
 import com.dermy.pharma.promotionscreen.data.remote.DriveMediaDataSourceImpl
+import com.dermy.pharma.promotionscreen.data.local.LocalSettings
 import com.dermy.pharma.promotionscreen.data.repository.PromoRepository
 import com.dermy.pharma.promotionscreen.data.repository.PromoRepositoryImpl
 import com.dermy.pharma.promotionscreen.di.KtorClient
@@ -34,8 +36,15 @@ class PromoApplication : Application() {
 
     companion object {
         private val authDataSourceInstance: AuthDataSource by lazy { AuthDataSourceImpl() }
+        private var localSettingsInstance: LocalSettings? = null
 
         fun getAuthDataSource(): AuthDataSource = authDataSourceInstance
+
+        fun getLocalSettings(context: Context): LocalSettings {
+            return localSettingsInstance ?: LocalSettings(context.applicationContext).also {
+                localSettingsInstance = it
+            }
+        }
 
         fun getPromoRepository(): PromoRepository {
             val remoteConfig = FirebaseRemoteConfig.getInstance()

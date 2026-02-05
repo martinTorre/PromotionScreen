@@ -12,6 +12,7 @@ interface PromoRepository {
     suspend fun refreshConfig(): Boolean
     fun getConfig(): PromoConfig
     suspend fun getMediaItems(context: Context): List<MediaItem>
+    suspend fun fileExists(context: Context, fileId: String): Boolean
 }
 
 class PromoRepositoryImpl(
@@ -34,5 +35,11 @@ class PromoRepositoryImpl(
         val config = configDataSource.getPromoConfig()
         val folderId = DriveUrlHelper.extractFolderId(config.driveUrl) ?: return emptyList()
         return driveMediaDataSource.getMediaItems(token, folderId)
+    }
+
+    override suspend fun fileExists(context: Context, fileId: String): Boolean {
+        val account = authDataSource.getLastSignedInAccount(context) ?: return false
+        val token = authDataSource.getAccessToken(context, account) ?: return false
+        return driveMediaDataSource.fileExists(token, fileId)
     }
 }

@@ -2,12 +2,16 @@ package com.dermy.pharma.promotionscreen.ui.viewmodel
 
 import android.app.Application
 import android.content.Intent
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import androidx.lifecycle.ProcessLifecycleOwner
 import com.dermy.pharma.promotionscreen.PromoApplication
 import com.dermy.pharma.promotionscreen.data.model.MediaItem
 import com.dermy.pharma.promotionscreen.data.model.MediaType
 import com.dermy.pharma.promotionscreen.data.repository.PromoRepository
+import com.dermy.pharma.promotionscreen.util.CacheHelper
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -26,6 +30,8 @@ data class MainUiState(
     val errorMessage: String? = null
 )
 
+private const val REFRESH_INTERVAL_MS = 24L * 60 * 60 * 1000
+
 class MainViewModel(
     application: Application
 ) : ViewModel() {
@@ -33,13 +39,22 @@ class MainViewModel(
     private val applicationContext: Application = application
     private val repository: PromoRepository = PromoApplication.getPromoRepository()
     private val authDataSource = PromoApplication.getAuthDataSource()
+    private val localSettings = PromoApplication.getLocalSettings(application)
 
     private val _uiState = MutableStateFlow(MainUiState())
     val uiState: StateFlow<MainUiState> = _uiState.asStateFlow()
 
     private var slideJob: Job? = null
+    private var dailyRefreshJob: Job? = null
+
+    private val processLifecycleObserver = LifecycleEventObserver { _, event ->
+        if (event == Lifecycle.Event.ON_START && authDataSource.getLastSignedInAccount(applicationContext) != null) {
+            loadInitialData(backgroundRefresh = true)
+        }
+    }
 
     init {
+        ProcessLifecycleOwner.get().lifecycle.addObserver(processLifecycleObserver)
         if (authDataSource.getLastSignedInAccount(applicationContext) == null) {
             _uiState.update { it.copy(needsSignIn = true, isLoading = false) }
         } else {
@@ -56,13 +71,27 @@ class MainViewModel(
         loadInitialData()
     }
 
-    fun loadInitialData() {
+    fun loadInitialData(backgroundRefresh: Boolean = false) {
         viewModelScope.launch {
-            _uiState.update { it.copy(isLoading = true, errorMessage = null) }
+            _uiState.update {
+                it.copy(
+                    mediaItems = emptyList(),
+                    currentIndex = 0,
+                    isLoading = true,
+                    errorMessage = null
+                )
+            }
+            val lastFetch = localSettings.getLastMediaFetchTime()
+            val now = System.currentTimeMillis()
+            val shouldClearCache = lastFetch == null || (now - lastFetch >= REFRESH_INTERVAL_MS)
             runCatching {
+                if (shouldClearCache) {
+                    CacheHelper.clearMediaCache(applicationContext)
+                }
                 repository.refreshConfig()
                 val config = repository.getConfig()
                 val items = repository.getMediaItems(applicationContext)
+                localSettings.setLastMediaFetchTime(System.currentTimeMillis())
                 val account = authDataSource.getLastSignedInAccount(applicationContext)
                 val token = account?.let { authDataSource.getAccessToken(applicationContext, it) }
                 _uiState.update {
@@ -78,14 +107,24 @@ class MainViewModel(
                 if (items.isNotEmpty()) {
                     startSlideTimer()
                 }
+                startDailyRefreshJob()
             }.onFailure { e ->
                 _uiState.update {
                     it.copy(
+                        mediaItems = emptyList(),
                         isLoading = false,
                         errorMessage = e.message ?: "Error al cargar"
                     )
                 }
             }
+        }
+    }
+
+    private fun startDailyRefreshJob() {
+        dailyRefreshJob?.cancel()
+        dailyRefreshJob = viewModelScope.launch {
+            delay(REFRESH_INTERVAL_MS)
+            loadInitialData()
         }
     }
 
@@ -125,6 +164,9 @@ class MainViewModel(
 
     override fun onCleared() {
         super.onCleared()
+        ProcessLifecycleOwner.get().lifecycle.removeObserver(processLifecycleObserver)
         stopSlideTimer()
+        dailyRefreshJob?.cancel()
+        dailyRefreshJob = null
     }
 }
