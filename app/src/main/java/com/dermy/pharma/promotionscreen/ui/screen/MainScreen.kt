@@ -1,8 +1,6 @@
 package com.dermy.pharma.promotionscreen.ui.screen
 
 import android.app.Application
-import androidx.activity.compose.rememberLauncherForActivityResult
-import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
@@ -24,9 +22,6 @@ import com.dermy.pharma.promotionscreen.data.model.MediaType
 import com.dermy.pharma.promotionscreen.ui.components.VideoPlayer
 import com.dermy.pharma.promotionscreen.ui.viewmodel.MainViewModel
 import com.dermy.pharma.promotionscreen.ui.viewmodel.MainViewModelFactory
-import com.dermy.pharma.promotionscreen.util.DriveUrlHelper
-import com.google.android.gms.auth.api.signin.GoogleSignIn
-import com.google.android.gms.common.api.ApiException
 
 @Composable
 fun MainScreen(
@@ -36,19 +31,6 @@ fun MainScreen(
 ) {
     val context = LocalContext.current
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
-    val signInLauncher = rememberLauncherForActivityResult(
-        contract = ActivityResultContracts.StartActivityForResult()
-    ) { result ->
-        if (result.resultCode == android.app.Activity.RESULT_OK && result.data != null) {
-            runCatching {
-                GoogleSignIn.getSignedInAccountFromIntent(result.data).getResult(ApiException::class.java)
-            }.onSuccess { viewModel.onSignInSuccess() }
-        }
-    }
-    if (uiState.needsSignIn) {
-        SignInScreen(onSignInClick = { signInLauncher.launch(viewModel.getSignInIntent()) })
-        return
-    }
     val currentIndex = uiState.currentIndex
     val mediaItems = uiState.mediaItems
     val currentItem = mediaItems.getOrNull(currentIndex)
@@ -85,10 +67,9 @@ fun MainScreen(
             currentItem != null -> {
                 when (currentItem.type) {
                     MediaType.IMAGE -> {
-                        val directUrl = DriveUrlHelper.toDirectDownloadUrl(currentItem.url)
                         AsyncImage(
                             model = ImageRequest.Builder(context)
-                                .data(directUrl)
+                                .data(currentItem.url)
                                 .crossfade(true)
                                 .build(),
                             contentDescription = null,
@@ -100,8 +81,8 @@ fun MainScreen(
                         VideoPlayer(
                             url = currentItem.url,
                             modifier = Modifier.fillMaxSize(),
-                            fileId = currentItem.fileId,
-                            accessToken = uiState.accessToken,
+                            fileId = null,
+                            accessToken = null,
                             onEnded = viewModel::onVideoEnded
                         )
                     }

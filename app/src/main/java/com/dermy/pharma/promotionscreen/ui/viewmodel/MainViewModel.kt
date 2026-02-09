@@ -1,7 +1,6 @@
 package com.dermy.pharma.promotionscreen.ui.viewmodel
 
 import android.app.Application
-import android.content.Intent
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.ViewModel
@@ -24,9 +23,7 @@ data class MainUiState(
     val mediaItems: List<MediaItem> = emptyList(),
     val currentIndex: Int = 0,
     val slideTimeSeconds: Long = 30L,
-    val accessToken: String? = null,
     val isLoading: Boolean = true,
-    val needsSignIn: Boolean = false,
     val errorMessage: String? = null
 )
 
@@ -37,8 +34,7 @@ class MainViewModel(
 ) : ViewModel() {
 
     private val applicationContext: Application = application
-    private val repository: PromoRepository = PromoApplication.getPromoRepository()
-    private val authDataSource = PromoApplication.getAuthDataSource()
+    private val repository: PromoRepository = PromoApplication.getPromoRepository(application)
     private val localSettings = PromoApplication.getLocalSettings(application)
 
     private val _uiState = MutableStateFlow(MainUiState())
@@ -48,26 +44,13 @@ class MainViewModel(
     private var dailyRefreshJob: Job? = null
 
     private val processLifecycleObserver = LifecycleEventObserver { _, event ->
-        if (event == Lifecycle.Event.ON_START && authDataSource.getLastSignedInAccount(applicationContext) != null) {
+        if (event == Lifecycle.Event.ON_START) {
             loadInitialData(backgroundRefresh = true)
         }
     }
 
     init {
         ProcessLifecycleOwner.get().lifecycle.addObserver(processLifecycleObserver)
-        if (authDataSource.getLastSignedInAccount(applicationContext) == null) {
-            _uiState.update { it.copy(needsSignIn = true, isLoading = false) }
-        } else {
-            loadInitialData()
-        }
-    }
-
-    fun getSignInIntent(): Intent {
-        return authDataSource.getSignInIntent(applicationContext)
-    }
-
-    fun onSignInSuccess() {
-        _uiState.update { it.copy(needsSignIn = false) }
         loadInitialData()
     }
 
@@ -92,14 +75,11 @@ class MainViewModel(
                 val config = repository.getConfig()
                 val items = repository.getMediaItems(applicationContext)
                 localSettings.setLastMediaFetchTime(System.currentTimeMillis())
-                val account = authDataSource.getLastSignedInAccount(applicationContext)
-                val token = account?.let { authDataSource.getAccessToken(applicationContext, it) }
                 _uiState.update {
                     it.copy(
                         mediaItems = items,
                         slideTimeSeconds = config.slideTimeSeconds,
                         currentIndex = 0,
-                        accessToken = token,
                         isLoading = false,
                         errorMessage = if (items.isEmpty()) "No hay medios en la carpeta" else null
                     )

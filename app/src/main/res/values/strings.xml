@@ -1,3 +1,10 @@
 <resources>
     <string name="app_name">PromotionScreen</string>
+    <string name="sign_in_tv_title">Inicio de sesión en TV</string>
+    <string name="sign_in_tv_message">Abre esta URL en tu teléfono o PC e introduce el código que aparece en la TV para autorizar el acceso a Drive.</string>
+    <string name="sign_in_tv_button">Iniciar sesión con código</string>
+    <string name="sign_in_tv_go_to">Abre en el navegador:</string>
+    <string name="sign_in_tv_enter_code">Introduce este código:</string>
+    <string name="sign_in_tv_waiting">Esperando autorización…</string>
+    <string name="sign_in_tv_dismiss_error">Cerrar</string>
 </resources>

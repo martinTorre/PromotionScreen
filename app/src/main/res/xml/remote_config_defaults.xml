@@ -5,7 +5,11 @@
         <value>30</value>
     </entry>
     <entry>
-        <key>DriveUrl</key>
-        <value>https://drive.google.com/drive/folders/13CViE9s62xacgsyT1I40yt-78KEXv9Xm?usp=share_link</value>
+        <key>StorageBaseUrl</key>
+        <value>https://firebasestorage.googleapis.com/v0/b/dermy-pharma.firebasestorage.app/o/dermy%2F</value>
+    </entry>
+    <entry>
+        <key>StorageFolderPath</key>
+        <value>dermy</value>
     </entry>
 </defaultsMap>
