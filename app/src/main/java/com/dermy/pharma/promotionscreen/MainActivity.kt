@@ -1,6 +1,7 @@
 package com.dermy.pharma.promotionscreen
 
 import android.os.Bundle
+import android.view.WindowManager
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
@@ -23,6 +24,7 @@ class MainActivity : ComponentActivity() {
             hide(android.view.WindowInsets.Type.navigationBars())
             systemBarsBehavior = WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
         }
+        window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
         setContent {
             PromotionScreenTheme {
                 Surface(modifier = Modifier.fillMaxSize()) {
