@@ -19,11 +19,19 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 
+enum class LoadingPhase {
+    DELETING,
+    DOWNLOADING,
+    READY
+}
+
 data class MainUiState(
     val mediaItems: List<MediaItem> = emptyList(),
     val currentIndex: Int = 0,
     val slideTimeSeconds: Long = 30L,
     val isLoading: Boolean = true,
+    val loadingPhase: LoadingPhase = LoadingPhase.DELETING,
+    val loadingProgress: Int = 0,
     val errorMessage: String? = null
 )
 
@@ -61,30 +69,63 @@ class MainViewModel(
                     mediaItems = emptyList(),
                     currentIndex = 0,
                     isLoading = true,
+                    loadingPhase = LoadingPhase.DELETING,
+                    loadingProgress = 0,
                     errorMessage = null
                 )
             }
-            val lastFetch = localSettings.getLastMediaFetchTime()
-            val now = System.currentTimeMillis()
-            val shouldClearCache = lastFetch == null || (now - lastFetch >= REFRESH_INTERVAL_MS)
+
             runCatching {
-                if (shouldClearCache) {
-                    CacheHelper.clearMediaCache(applicationContext)
+                // Phase 1: Delete old content
+                CacheHelper.deleteAllMedia(applicationContext) { percent ->
+                    _uiState.update {
+                        it.copy(loadingPhase = LoadingPhase.DELETING, loadingProgress = percent)
+                    }
+                }
+
+                // Phase 2: Fetch config and media list
+                _uiState.update {
+                    it.copy(loadingPhase = LoadingPhase.DOWNLOADING, loadingProgress = 0)
                 }
                 repository.refreshConfig()
                 val config = repository.getConfig()
-                val items = repository.getMediaItems(applicationContext)
+                val remoteItems = repository.getMediaItems(applicationContext)
+
+                if (remoteItems.isEmpty()) {
+                    _uiState.update {
+                        it.copy(
+                            mediaItems = emptyList(),
+                            isLoading = false,
+                            loadingPhase = LoadingPhase.READY,
+                            errorMessage = "No hay medios en la carpeta"
+                        )
+                    }
+                    return@launch
+                }
+
+                // Phase 3: Download all media locally
+                val localItems = repository.downloadAllMedia(
+                    applicationContext,
+                    remoteItems
+                ) { percent ->
+                    _uiState.update {
+                        it.copy(loadingPhase = LoadingPhase.DOWNLOADING, loadingProgress = percent)
+                    }
+                }
+
                 localSettings.setLastMediaFetchTime(System.currentTimeMillis())
+
                 _uiState.update {
                     it.copy(
-                        mediaItems = items,
+                        mediaItems = localItems,
                         slideTimeSeconds = config.slideTimeSeconds,
                         currentIndex = 0,
                         isLoading = false,
-                        errorMessage = if (items.isEmpty()) "No hay medios en la carpeta" else null
+                        loadingPhase = LoadingPhase.READY,
+                        errorMessage = if (localItems.isEmpty()) "No hay medios en la carpeta" else null
                     )
                 }
-                if (items.isNotEmpty()) {
+                if (localItems.isNotEmpty()) {
                     startSlideTimer()
                 }
                 startDailyRefreshJob()
@@ -93,6 +134,7 @@ class MainViewModel(
                     it.copy(
                         mediaItems = emptyList(),
                         isLoading = false,
+                        loadingPhase = LoadingPhase.READY,
                         errorMessage = e.message ?: "Error al cargar"
                     )
                 }

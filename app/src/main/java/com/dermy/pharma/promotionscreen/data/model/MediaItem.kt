@@ -8,5 +8,6 @@ enum class MediaType {
 data class MediaItem(
     val url: String,
     val type: MediaType,
-    val fileId: String? = null
+    val fileId: String? = null,
+    val localPath: String? = null
 )

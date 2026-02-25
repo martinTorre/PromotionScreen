@@ -1,5 +1,6 @@
 package com.dermy.pharma.promotionscreen.ui.components
 
+import android.net.Uri
 import android.view.LayoutInflater
 import android.view.ViewGroup
 import androidx.compose.runtime.Composable
@@ -12,37 +13,27 @@ import androidx.compose.ui.viewinterop.AndroidView
 import androidx.media3.common.MediaItem
 import androidx.media3.common.Player
 import androidx.media3.datasource.DefaultDataSource
-import androidx.media3.datasource.DefaultHttpDataSource
 import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.exoplayer.source.DefaultMediaSourceFactory
+import androidx.media3.ui.AspectRatioFrameLayout
 import androidx.media3.ui.PlayerView
 import com.dermy.pharma.promotionscreen.R
-
-private const val DRIVE_API_MEDIA_URL = "https://www.googleapis.com/drive/v3/files/"
 
 @Composable
 fun VideoPlayer(
     url: String,
     modifier: Modifier = Modifier,
+    isLocalFile: Boolean = false,
     fileId: String? = null,
     accessToken: String? = null,
     onEnded: () -> Unit = {}
 ) {
-    val playbackKey = when {
-        fileId != null && accessToken != null -> "drive:$fileId"
-        else -> "url:$url"
-    }
+    val playbackKey = if (isLocalFile) "local:$url" else "url:$url"
+
     key(playbackKey) {
         val context = LocalContext.current
         val exoPlayer: ExoPlayer = remember(key1 = playbackKey) {
-            val dataSourceFactory: DefaultDataSource.Factory = when {
-                fileId != null && accessToken != null -> {
-                    val httpFactory = DefaultHttpDataSource.Factory()
-                        .setDefaultRequestProperties(mapOf("Authorization" to "Bearer $accessToken"))
-                    DefaultDataSource.Factory(context, httpFactory)
-                }
-                else -> DefaultDataSource.Factory(context)
-            }
+            val dataSourceFactory = DefaultDataSource.Factory(context)
             val mediaSourceFactory = DefaultMediaSourceFactory(context)
                 .setDataSourceFactory(dataSourceFactory)
             ExoPlayer.Builder(context)
@@ -54,9 +45,10 @@ fun VideoPlayer(
                 }
         }
         DisposableEffect(playbackKey) {
-            val mediaUri = when {
-                fileId != null && accessToken != null -> "${DRIVE_API_MEDIA_URL}${fileId}?alt=media"
-                else -> url
+            val mediaUri = if (isLocalFile) {
+                Uri.fromFile(java.io.File(url)).toString()
+            } else {
+                url
             }
             exoPlayer.setMediaItem(MediaItem.fromUri(mediaUri))
             exoPlayer.prepare()
@@ -80,7 +72,10 @@ fun VideoPlayer(
                         ViewGroup.LayoutParams.MATCH_PARENT,
                         ViewGroup.LayoutParams.MATCH_PARENT
                     )
-                    (this as PlayerView).player = exoPlayer
+                    (this as PlayerView).apply {
+                        player = exoPlayer
+                        resizeMode = AspectRatioFrameLayout.RESIZE_MODE_FIT
+                    }
                 }
             },
             modifier = modifier

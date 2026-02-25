@@ -1,5 +1,6 @@
 package com.dermy.pharma.promotionscreen.data.remote
 
+import android.content.Context
 import com.dermy.pharma.promotionscreen.data.model.MediaItem
 import com.dermy.pharma.promotionscreen.data.model.MediaType
 import com.google.firebase.auth.FirebaseAuth
@@ -7,9 +8,11 @@ import com.google.firebase.storage.FirebaseStorage
 import kotlinx.coroutines.tasks.await
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
+import java.io.File
 
 interface FirebaseStorageMediaDataSource {
     suspend fun getMediaItems(storageFolderPath: String): List<MediaItem>
+    suspend fun downloadFile(item: MediaItem, destFile: File)
 }
 
 class FirebaseStorageMediaDataSourceImpl(
@@ -34,6 +37,17 @@ class FirebaseStorageMediaDataSourceImpl(
                 }
                 MediaItem(url = url, type = type, fileId = ref.name)
             }
+        }
+    }
+
+    override suspend fun downloadFile(item: MediaItem, destFile: File) {
+        withContext(Dispatchers.IO) {
+            ensureSignedIn()
+            val fileId = item.fileId ?: return@withContext
+            val config = com.google.firebase.remoteconfig.FirebaseRemoteConfig.getInstance()
+            val folderPath = config.getString("StorageFolderPath").ifBlank { "dermy" }
+            val ref = storage.reference.child("$folderPath/$fileId")
+            ref.getFile(destFile).await()
         }
     }
 
